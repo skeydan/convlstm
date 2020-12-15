@@ -111,7 +111,7 @@ convlstm <- nn_module(
       
       # keep track of list of outputs or this layer
       layer_output_list[[i]] <- stacked_outputs
-      # keep track of last output for this layer
+      # keep track of last state for this layer
       layer_state_list[[i]] <- list(h, c)
     }
  
@@ -126,9 +126,14 @@ convlstm <- nn_module(
 
 # batch_size, seq_len, channels, height, width
 x <- torch_rand(c(2, 4, 3, 16, 16))
+
+
+# single-layer ------------------------------------------------------------
+
 model <- convlstm(input_dim = 3, hidden_dims = 5, kernel_sizes = 3, n_layers = 1)
 
 c(layer_outputs, layer_last_states) %<-% model(x)
+
 # for each layer, tensor of size (batch_size, seq_len, hidden_size, height, width)
 layer_outputs[[1]]
 
@@ -138,4 +143,24 @@ layer_last_states[[1]]
 layer_last_states[[1]][[1]]
 # c, of size (batch_size, hidden_size, height, width)
 layer_last_states[[1]][[2]]
+
+
+# multiple-layer ----------------------------------------------------------
+
+model <- convlstm(input_dim = 3, hidden_dims = c(5, 5, 1), kernel_sizes = c(3, 3, 3), n_layers = 3)
+
+c(layer_outputs, layer_last_states) %<-% model(x)
+
+# for each layer, tensor of size (batch_size, seq_len, hidden_size, height, width)
+dim(layer_outputs[[1]])
+dim(layer_outputs[[2]])
+dim(layer_outputs[[3]])
+
+# list of 2 tensors for each layer
+length(layer_last_states)
+# h, of size (batch_size, hidden_size, height, width)
+dim(layer_last_states[[3]][[1]])
+# c, of size (batch_size, hidden_size, height, width)
+dim(layer_last_states[[3]][[2]])
+
 

@@ -1,12 +1,16 @@
+library(torch)
+library(torchvision)
+
+source("convlstm.R")
 
 # Generate dummy data ----------------------------------------------
 
-beams <- vector(mode = "list", length = 8)
-beam <- torch_eye(6) %>% nnf_pad(rep(13, 4))
+beams <- vector(mode = "list", length = 6)
+beam <- torch_eye(6) %>% nnf_pad(c(6, 12, 12, 6)) # left, right, top, bottom
 beams[[1]] <- beam
 
-for (i in 2:8) {
-  beams[[i]] <- torch_roll(beam, c(-(i-1),i-1), c(1,2))
+for (i in 2:6) {
+  beams[[i]] <- torch_roll(beam, c(-(i-1),i-1), c(1, 2))
 }
 
 init_sequence <- torch_stack(beams, dim = 1)
@@ -19,7 +23,7 @@ for (i in 2:100) {
 }
 
 input <- torch_stack(sequences, dim = 1)
-
+dim(input)
 
 
 # create dataset and dataloader --------------------------------------
@@ -31,7 +35,7 @@ dummy_ds <- dataset(
   },
   
   .getitem = function(i) {
-    list(x = self$data[i, 1:4, ..], y = self$data[i, 5:8, ..])
+    list(x = self$data[i, 1:5, ..], y = self$data[i, 6, ..])
   },
   
   .length = function() {
@@ -40,20 +44,16 @@ dummy_ds <- dataset(
 )
 
 ds <- dummy_ds(input)
-ds$.getitem(1)
-
-dl <- dataloader(ds, batch_size = 10, shuffle = TRUE)
-dl$.iter()$.next()
+dl <- dataloader(ds, batch_size = 100)
 
 
 # train -------------------------------------------------------------------
 
-model <- convlstm(input_dim = 1, hidden_dims = 1, kernel_sizes = 3, n_layers = 1)
+model <- convlstm(input_dim = 1, hidden_dims = c(64, 1), kernel_sizes = c(3, 3), n_layers = 2)
 
 optimizer <- optim_adam(model$parameters)
 
-
-num_epochs <- 10
+num_epochs <- 100
 
 for (epoch in 1:num_epochs) {
   
@@ -64,8 +64,9 @@ for (epoch in 1:num_epochs) {
     
     optimizer$zero_grad()
     
-    # output from last layer
-    preds <- model(b$x)[[1]][[1]]
+    # last-timestep output from last layer
+    preds <- model(b$x)[[2]][[2]][[1]]
+  
     loss <- nnf_mse_loss(preds, b$y)
     batch_losses <- c(batch_losses, loss$item())
     
@@ -73,5 +74,15 @@ for (epoch in 1:num_epochs) {
     optimizer$step()
   }
   
-  cat(sprintf("\nEpoch %d, training loss:%3f\n", epoch, mean(batch_losses)))
+  if (epoch %% 10 == 0) cat(sprintf("\nEpoch %d, training loss:%3f\n", epoch, mean(batch_losses)))
 }
+
+
+# inspect predictions ------------------------------------------------------
+
+dl <- dataloader(ds, batch_size = 1)
+b <- dl$.iter()$.next()
+
+b$y[1, 1, 6:15, 10:19]
+round(as.matrix(preds[1, 1, 6:15, 10:19]), 2)
+
