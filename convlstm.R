@@ -157,7 +157,7 @@ dim(layer_outputs[[2]])
 dim(layer_outputs[[3]])
 
 # list of 2 tensors for each layer
-length(layer_last_states)
+str(layer_last_states)
 # h, of size (batch_size, hidden_size, height, width)
 dim(layer_last_states[[3]][[1]])
 # c, of size (batch_size, hidden_size, height, width)

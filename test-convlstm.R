@@ -23,6 +23,8 @@ for (i in 2:100) {
 }
 
 input <- torch_stack(sequences, dim = 1)
+# add channels dimension
+input <- input$unsqueeze(3)
 dim(input)
 
 
@@ -31,7 +33,7 @@ dim(input)
 dummy_ds <- dataset(
   
   initialize = function(data) {
-    self$data <- data$unsqueeze(3)
+    self$data <- data
   },
   
   .getitem = function(i) {
