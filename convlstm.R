@@ -1,6 +1,5 @@
 library(torch)
 library(torchvision)
-library(zeallot)
 
 convlstm_cell <- nn_module(
   
@@ -22,11 +21,16 @@ convlstm_cell <- nn_module(
   
   forward = function(x, prev_states) {
 
-    c(h_prev, c_prev) %<-% prev_states
+    h_prev <- prev_states[[1]]
+    c_prev <- prev_states[[2]]
     
     combined <- torch_cat(list(x, h_prev), dim = 2)  # concatenate along channel axis
     combined_conv <- self$conv(combined)
-    c(cc_i, cc_f, cc_o, cc_g) %<-% torch_split(combined_conv, self$hidden_dim, dim = 2)
+    gate_convs <- torch_split(combined_conv, self$hidden_dim, dim = 2)
+    cc_i <- gate_convs[[1]]
+    cc_f <- gate_convs[[2]]
+    cc_o <- gate_convs[[3]]
+    cc_g <- gate_convs[[4]]
     
     # input, forget, output, and cell gates (corresponding to torch's LSTM)
     i <- torch_sigmoid(cc_i)
@@ -66,7 +70,10 @@ convlstm <- nn_module(
   # we always assume batch-first
   forward = function(x) {
     
-    c(batch_size, seq_len, num_channels, height, width) %<-% x$size()
+    batch_size <- x$size()[1]
+    seq_len <- x$size()[2]
+    height <- x$size()[4]
+    width <- x$size()[5]
    
     # initialize hidden states
     init_hidden <- vector(mode = "list", length = self$n_layers)
@@ -88,14 +95,18 @@ convlstm <- nn_module(
     for (i in 1:self$n_layers) {
       
       # every layer's hidden state starts from 0 (non-stateful)
-      c(h, c) %<-% hidden_states[[i]]
+      h_c <- hidden_states[[i]]
+      h <- h_c[[1]]
+      c <- h_c[[2]]
       # outputs, of length seq_len, for this layer
       # equivalently, list of h states for each time step
       output_sequence <- vector(mode = "list", length = seq_len)
       
       # loop over timesteps
       for (t in 1:seq_len) {
-        c(h, c) %<-% self$cell_list[[i]](cur_layer_input[ , t, , , ], list(h, c))
+        h_c <- self$cell_list[[i]](cur_layer_input[ , t, , , ], list(h, c))
+        h <- h_c[[1]]
+        c <- h_c[[2]]
         # keep track of output (h) for every timestep
         # h has dim (batch_size, hidden_size, height, width)
         output_sequence[[t]] <- h
@@ -132,7 +143,9 @@ x <- torch_rand(c(2, 4, 3, 16, 16))
 
 model <- convlstm(input_dim = 3, hidden_dims = 5, kernel_sizes = 3, n_layers = 1)
 
-c(layer_outputs, layer_last_states) %<-% model(x)
+ret <- model(x)
+layer_outputs <- ret[[1]]
+layer_last_states <- ret[[2]]
 
 # for each layer, tensor of size (batch_size, seq_len, hidden_size, height, width)
 layer_outputs[[1]]
@@ -149,7 +162,9 @@ layer_last_states[[1]][[2]]
 
 model <- convlstm(input_dim = 3, hidden_dims = c(5, 5, 1), kernel_sizes = c(3, 3, 3), n_layers = 3)
 
-c(layer_outputs, layer_last_states) %<-% model(x)
+ret <- model(x)
+layer_outputs <- ret[[1]]
+layer_last_states <- ret[[2]]
 
 # for each layer, tensor of size (batch_size, seq_len, hidden_size, height, width)
 dim(layer_outputs[[1]])
